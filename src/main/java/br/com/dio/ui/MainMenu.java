@@ -12,65 +12,68 @@ import java.util.List;
 import java.util.Scanner;
 
 import static br.com.dio.persistence.config.ConnectionConfig.getConnection;
-import static br.com.dio.persistence.entity.BoardColumnKindEnum.CANCEL;
-import static br.com.dio.persistence.entity.BoardColumnKindEnum.FINAL;
-import static br.com.dio.persistence.entity.BoardColumnKindEnum.INITIAL;
-import static br.com.dio.persistence.entity.BoardColumnKindEnum.PENDING;
+import static br.com.dio.persistence.entity.BoardColumnKindEnum.*;
 
-public class MainMenu {
+public class MainMenuPersonalizado {
 
-    private final Scanner scanner = new Scanner(System.in).useDelimiter("\n");
+    private final Scanner scanner = new Scanner(System.in);
 
     public void execute() throws SQLException {
-        System.out.println("Bem vindo ao gerenciador de boards, escolha a opção desejada");
+        System.out.println("Bem-vindo ao Board do Julio! Escolha sua aventura:");
         var option = -1;
         while (true){
-            System.out.println("1 - Criar um novo board");
+            System.out.println("\n1 - Criar um novo board");
             System.out.println("2 - Selecionar um board existente");
             System.out.println("3 - Excluir um board");
             System.out.println("4 - Sair");
-            option = scanner.nextInt();
+
+            option = readInt("Escolha uma opção:");
+
             switch (option){
                 case 1 -> createBoard();
                 case 2 -> selectBoard();
                 case 3 -> deleteBoard();
                 case 4 -> System.exit(0);
-                default -> System.out.println("Opção inválida, informe uma opção do menu");
+                default -> System.out.println("Opção inválida! Escolha novamente.");
             }
         }
     }
 
     private void createBoard() throws SQLException {
         var entity = new BoardEntity();
-        System.out.println("Informe o nome do seu board");
-        entity.setName(scanner.next());
+        System.out.println("Informe o nome do seu board:");
+        entity.setName(scanner.nextLine());
 
-        System.out.println("Seu board terá colunas além das 3 padrões? Se sim informe quantas, senão digite '0'");
-        var additionalColumns = scanner.nextInt();
+        System.out.println("Escolha o tipo de board (1-Estudo / 2-Trabalho / 3-Pessoal):");
+        int tipoBoard = readInt("");
 
         List<BoardColumnEntity> columns = new ArrayList<>();
-
-        System.out.println("Informe o nome da coluna inicial do board");
-        var initialColumnName = scanner.next();
-        var initialColumn = createColumn(initialColumnName, INITIAL, 0);
-        columns.add(initialColumn);
-
-        for (int i = 0; i < additionalColumns; i++) {
-            System.out.println("Informe o nome da coluna de tarefa pendente do board");
-            var pendingColumnName = scanner.next();
-            var pendingColumn = createColumn(pendingColumnName, PENDING, i + 1);
-            columns.add(pendingColumn);
+        switch (tipoBoard) {
+            case 1 -> {
+                columns.add(createColumn("📚 Para Ler", PENDING, 0));
+                columns.add(createColumn("🖊 Estudando", PENDING, 1));
+                columns.add(createColumn("✅ Concluído", FINAL, 2));
+            }
+            case 2 -> {
+                columns.add(createColumn("📝 A Fazer", PENDING, 0));
+                columns.add(createColumn("🚀 Em Progresso", PENDING, 1));
+                columns.add(createColumn("✅ Concluído", FINAL, 2));
+            }
+            case 3 -> {
+                columns.add(createColumn("🎯 Metas", PENDING, 0));
+                columns.add(createColumn("💡 Ideias", PENDING, 1));
+                columns.add(createColumn("✅ Realizado", FINAL, 2));
+            }
+            default -> {
+                System.out.println("Tipo inválido, criando board padrão.");
+                columns.add(createColumn("Para Iniciar", PENDING, 0));
+                columns.add(createColumn("Em Progresso", PENDING, 1));
+                columns.add(createColumn("Concluído", FINAL, 2));
+            }
         }
 
-        System.out.println("Informe o nome da coluna final");
-        var finalColumnName = scanner.next();
-        var finalColumn = createColumn(finalColumnName, FINAL, additionalColumns + 1);
-        columns.add(finalColumn);
-
-        System.out.println("Informe o nome da coluna de cancelamento do baord");
-        var cancelColumnName = scanner.next();
-        var cancelColumn = createColumn(cancelColumnName, CANCEL, additionalColumns + 2);
-        columns.add(cancelColumn);
+        // Coluna de cancelamento padrão
+        columns.add(createColumn("❌ Cancelado", CANCEL, columns.size()));
 
         entity.setBoardColumns(columns);
         try(var connection = getConnection()){
@@ -78,30 +81,34 @@ public class MainMenu {
             service.insert(entity);
         }
 
+        System.out.println("Board criado com sucesso! Que comece a organização das tarefas! 🎉");
     }
 
     private void selectBoard() throws SQLException {
-        System.out.println("Informe o id do board que deseja selecionar");
-        var id = scanner.nextLong();
-        try(var connection = getConnection()){
+        System.out.println("Informe o ID do board que deseja acessar:");
+        long boardId = readLong("Digite o ID:");
+
+        try (var connection = getConnection()) {
             var queryService = new BoardQueryService(connection);
-            var optional = queryService.findById(id);
-            optional.ifPresentOrElse(
-                    b -> new BoardMenu(b).execute(),
-                    () -> System.out.printf("Não foi encontrado um board com id %s\n", id)
+            var optionalBoard = queryService.findById(boardId);
+
+            optionalBoard.ifPresentOrElse(
+                board -> new BoardMenuPersonalizado(board).execute(),
+                () -> System.out.printf("Não existe board com ID %d%n", boardId)
             );
         }
     }
 
     private void deleteBoard() throws SQLException {
-        System.out.println("Informe o id do board que será excluido");
-        var id = scanner.nextLong();
-        try(var connection = getConnection()){
+        System.out.println("Informe o ID do board que deseja excluir:");
+        long boardId = readLong("Digite o ID:");
+
+        try (var connection = getConnection()) {
             var service = new BoardService(connection);
-            if (service.delete(id)){
-                System.out.printf("O board %s foi excluido\n", id);
+            if (service.delete(boardId)) {
+                System.out.printf("Board com ID %d excluído com sucesso! 🗑️%n", boardId);
             } else {
-                System.out.printf("Não foi encontrado um board com id %s\n", id);
+                System.out.printf("Não existe board com ID %d%n", boardId);
             }
         }
     }
@@ -114,4 +121,31 @@ public class MainMenu {
         return boardColumn;
     }
 
+    private int readInt(String prompt) {
+        int value;
+        while (true) {
+            System.out.println(prompt);
+            try {
+                value = Integer.parseInt(scanner.nextLine());
+                break;
+            } catch (NumberFormatException e) {
+                System.out.println("Entrada inválida. Digite apenas números inteiros!");
+            }
+        }
+        return value;
+    }
+
+    private long readLong(String prompt) {
+        long value;
+        while (true) {
+            System.out.println(prompt);
+            try {
+                value = Long.parseLong(scanner.nextLine());
+                break;
+            } catch (NumberFormatException e) {
+                System.out.println("Entrada inválida. Digite apenas números inteiros!");
+            }
+        }
+        return value;
+    }
 }
